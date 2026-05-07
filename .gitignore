@@ -9,6 +9,13 @@
 *.user
 *.userosscache
 *.sln.docstates
+*.md.backup
+*.bat
+*.idea
+*.sln
+*.vcxproj
+*.vcxproj.filters
+
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -361,3 +368,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Environment variables
+.env
+
+# MacOS
+.DS_Store
