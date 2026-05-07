@@ -1,6 +1,6 @@
 #include "HexaSphere.h"
 
-
+/*Vector cross product calculation.*/
 std::array<double, 3> crossProd(std::array<float, 3> a, std::array<float, 3> b) {
 	return {
 		(a[1] * b[2])- (b[1] * a[2]),
@@ -9,27 +9,32 @@ std::array<double, 3> crossProd(std::array<float, 3> a, std::array<float, 3> b) 
 	};
 }
 
+/* Get whether the winding order of a given triangle, oriented around a source, is correct. */
 bool getWindingOrder(std::array<float, 3> a, std::array<float, 3> b, std::array<float, 3> c, std::array<float, 3> source) {
+	// Extrude top vertices of walls
 	a[0] *= 4;
 	a[1] *= 4;
 	a[2] *= 4;
+	// Draw vector destination
 	std::array<double, 3> destination = {
 		crossProd(
 			{b[0] - a[0], b[1] - a[1], b[2] - a[2]} ,
 			{c[0] - b[0], c[1] - b[1], c[2] - b[2]}
 		)
 	};
-
+	
+	// Calculate agreement value
 	double agreement = (source[0] * destination[0]) + (source[1] * destination[1]) + (source[2] * destination[2]);
-	//td::cout << agreement << " _ ["  <<
-	//	destination[0] << ", " << destination[1] << ", " << destination[2] << "] _ [" <<
-	//	source[0] << ", " << source[1] << ", " << source[2] << "]"
-	//	<< std::endl;
-
+	// Return agreement sign.
 	return agreement < 0;
 }
 
-
+/*
+This function calculates a set of values used for later computation based on a tile's row and tri coordinate.
+These values used to be barycentric coordinates, but as an optimization this has been compacted into returning two values:
+ - l2s: calculated from what would be the first two barycentric coordinates
+ - b3:  the third, unaltered, barycentric coordinate. 
+*/
 void convertRowAndTileIntoBary(int row, int tri, std::array<float, 2>& vec) {
 	int rev = (row * 2) - tri;
 	//int n3 = 3 * n;
@@ -48,10 +53,12 @@ void convertRowAndTileIntoBary(int row, int tri, std::array<float, 2>& vec) {
 	vec[1] = (rev + floor(rev / 2) - !(rev & 1)) / (3*n);
 }
 
+/*Translate set of row-tri data into its corresponding vertex index.*/
 inline int translate_data_into_vertIndex(int rowLim, int tri, int face, uint8_t vertexUsageID) {
 	return (rowLim + tri - 1 ) * 4 + vertexUsageID + face;
 }
 
+/*Slerp calculation, optimized slightly for use in the hexasphere, might not work on values outside of a hexasphere.*/
 std::array<double, 3> slerp(std::array<double, 3> p0, std::array<double, 3>p1, double t) {
 	double ang0_cos = p0[0] * p1[0] + p0[1] * p1[1] + p0[2] * p1[2]; // 100ms angle between point after slerp and remainging corner
 	double ang0_sin =  1 / sqrt(1 - ang0_cos * ang0_cos);  // 0 ms damn...
@@ -66,6 +73,7 @@ std::array<double, 3> slerp(std::array<double, 3> p0, std::array<double, 3>p1, d
 	};
 }
 
+/*Extra cheap slerp, used for specific calculations where certain parts of the input are always consistent. Can't be used outside of these scenarios.*/
 std::array<double, 3> cheap_slerp(std::array<double, 3> p0, std::array<double, 3> p1, double t) {
 	constexpr double ang0_sin = 1/0.89442719099991586;
 	constexpr double ang0 = 1.1071487177940904;
@@ -79,6 +87,10 @@ std::array<double, 3> cheap_slerp(std::array<double, 3> p0, std::array<double, 3
 	};
 }
 
+/*
+Convert a barycentric coordinate set into coordinates on the unit sphere, given vertex coordinates of the polyhedron face.
+Optimized to no longer take the full barycentric coordinates as input, but rather a precalculated value called l2s paired with only the third barycentric coordinate.
+*/
 std::array<float, 3> convert_barycentric_into_absolute(std::array<float, 2> p, std::array<double, 3> s1, std::array<double, 3> s2, std::array<double, 3> s3) {
 
 	//double l2s = p[1] / (p[0] + p[1]); // Can be optimized away, this is a value calculated by only the bary coords.
