@@ -104,31 +104,39 @@ std::array<float, 3> convert_barycentric_into_absolute(std::array<float, 2> p, s
 	return { float(result[0]), float(result[1]), float(result[2]) };
 };
 
-
+/*
+Generate the vertex indices for tiles that lie wholly on a polyherdal face.
+Puts resulting values into the hexlist at given index I.
+*/
 void HexaSphere::GetInBoundVertIndices(int& I) 
 {
 	constexpr int lim = HEX_COUNT(n); // Limit of the total triangle.
-	// constexpr int nSqr = n * n; // The amount of tris in a face. aka n^2.
+	// constexpr int nSqr = n * n; // The amount of tris in a face. aka n^2. Made into a global constant.
 	constexpr int nSqr4 = 4*nSqr; // The amount of tris in a face when including vertex usage redudancy. aka 4n^2.
+
 	int R = 2; // Index of row (row indices start at 1)
 	int T = 0; // 2*Tile index in row
 	// int I = 0 // The starting index within the hexList
 	int RLim = 1; // Limit of the current row
 
+	// Loop for each tile on *a* face.
 	for (int i = 0; i < lim; i++) {
-		int F = 0;
+		int F = 0;  //  hexlist offset of the current face.
 
-		for (int f = 0; f < 20; f ++) {
+		// Loop over each face
+		for (int f = 0; f < 20; f ++) {  
+			// Calculate the vertices of the tile on this face
 			hexList[F + I]     = translate_data_into_vertIndex(RLim,     1 + T, f*nSqr4, T!=0);
 			hexList[F + I + 1] = translate_data_into_vertIndex(RLim,     2 + T, f*nSqr4, 0);
 			hexList[F + I + 2] = translate_data_into_vertIndex(RLim,     3 + T, f*nSqr4, 0);
 			hexList[F + I + 3] = translate_data_into_vertIndex(RLim + (2*R-1), 2 + T, f*nSqr4, R==n-1? 0 : T==0? 1 : 2);
 			hexList[F + I + 4] = translate_data_into_vertIndex(RLim + (2*R-1), 3 + T, f*nSqr4, R==n-1? 0 : 2);
 			hexList[F + I + 5] = translate_data_into_vertIndex(RLim + (2*R-1), 4 + T, f*nSqr4, 1);
-			F += lim*6;		
+			F += lim*6;		// Update the face offset
 
 		}
 
+		// Increment the row (R), tri (T) and row limit (RLim) values for the next tile.
 		I += 6;
 		if (4+T < 2*R) {
 			T+= 2;
@@ -140,13 +148,17 @@ void HexaSphere::GetInBoundVertIndices(int& I)
 		}
 
 	}
-	I = lim*20*6;
+	I = lim*20*6;  // Update the given index pointer I
 };
 
+/*
+Generate the vertex indices for tiles that lie on the edges of a polyherdal face.
+Puts resulting values into the hexlist at given index I.
+*/
 void HexaSphere::GetBorderVertIndices(int& I) 
 {
 	constexpr int lim = n-1; // The amount of tiles on an edge.
-	// constexpr int nSqr = n*n; // The amount of tris in a face. aka n^2.
+	// constexpr int nSqr = n*n; // The amount of tris in a face. aka n^2. Now a global constant.
 	constexpr int nSqr4 = 4*nSqr; // The amount of tris in a face when including vertex usage redudancy. aka 4n^2.
 	constexpr int n_1sqr = (n-1)*(n-1); // The amount of tris in a face excluding the final row.
 	constexpr int n_1sqr4 = 4*n_1sqr; // The amount of tris in a face excluding the final row when including vertex usage redundancy.
@@ -198,12 +210,17 @@ void HexaSphere::GetBorderVertIndices(int& I)
 	}
 };
 
+/*
+Generate the vertex indices for the 12 hexagonal tiles, which are always at constant positions.
+Puts resulting values into the hexlist at given index I.
+*/
 void HexaSphere::GetPentVertIndices(int& I)
 {
-	constexpr int nSqr4 = nSqr * 4;
-	constexpr int n8_4 = n * 8 - 4;
-	for (int pd = 0; pd < 12; pd++) {
-		for (int vd = 0; vd < 5;vd++) {
+	constexpr int nSqr4 = nSqr * 4;  // The amount of tiles on a face when including vertex redundancy for walls.
+	constexpr int n8_4 = n * 8 - 4;  // Precalculated part of the formula.
+
+	for (int pd = 0; pd < 12; pd++) {  // Loop over each pentagon
+		for (int vd = 0; vd < 5;vd++) {  // Per vertex:
 			uint8_t face   = pentagonFaceOrder[pd][vd][0];
 			uint8_t corner = pentagonFaceOrder[pd][vd][1];
 
@@ -213,6 +230,10 @@ void HexaSphere::GetPentVertIndices(int& I)
 	}
 };
 
+/*
+Generate the vertex positions for all vertices on the sphere.
+Large function, uses complex mathematical calculations for every vertex (double slerp found in convert_barycentric_into_absolute helper function).
+*/
 void HexaSphere::GetVertices() 
 {
 	// Gather the bary centric vertex coordinates on one face.
@@ -250,6 +271,11 @@ void HexaSphere::GetVertices()
 	}
 };
 
+/*
+Order all vertex indices into the triangle array to form consistently wound faces for each tile.
+Unfinished: Does not work for edge hexes and pentagons. [TO-DO]
+Should probably be split into 3 like getAllVertexIndices.
+*/
 void HexaSphere::GetTriangles() 
 {
 	// Time for triangles.
@@ -443,10 +469,10 @@ void HexaSphere::GetTriangles()
 			// TO-DO: This currently does not take account the inversion map!
 			for (int j = 0; j < 6; j++) {
 				triangles[I+0] = pts[j]; 
-				triangles[I+1] = (pts[j] | 3);   // used to use |4 instead of &~4
-				triangles[I+2] = (pts[b[j+1]] | 3);  // used to use |4 instead of &~4
+				triangles[I+1] = (pts[j] | 3);
+				triangles[I+2] = (pts[b[j+1]] | 3); 
 				triangles[I+3] = pts[j]; 
-				triangles[I+4] = (pts[b[j+1]] | 3);   // used to use |4 instead of &~4
+				triangles[I+4] = (pts[b[j+1]] | 3); 
 				triangles[I+5] = pts[b[j+1]];
 				I += 6;
 			}
@@ -454,6 +480,10 @@ void HexaSphere::GetTriangles()
 	};
 };
 
+/*
+Generate a map of each tile's neighbours.
+Not implemented yet. [TO-DO]
+*/
 void HexaSphere::GetNeighbourMap() 
 {
 
