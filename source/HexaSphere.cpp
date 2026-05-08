@@ -388,8 +388,8 @@ void HexaSphere::GetTriangles()
 	*/
 
 
-	// First, a loop for all hexes on a face to precalculate the wall directions.
-	std::vector<bool> inversionMap = std::vector<bool>(HEX_COUNT(n)*6);
+	// First, a loop for all hexes on a face to precalculate the wall directions.  [map could be compacted as only bools are needed, bools << 1]
+	std::vector<uint8_t> inversionMap = std::vector<uint8_t>(HEX_COUNT(n)*6);
 	for (int i = 0; i < 6*HEX_COUNT(n); i+=6) {
 		std::array<std::array<float, 3>, 6> pts = { // Reordered!
 			vertices[hexList[i + 0]],
@@ -424,32 +424,33 @@ void HexaSphere::GetTriangles()
 					src[1] = sides[b[j + 3]][1] - sides[j][1],
 					src[2] = sides[b[j + 3]][2] - sides[j][2],
 				} ;
-			inversionMap[i+j] = getWindingOrder(pts[j], pts[j], pts[b[j + 1]], src);
+			inversionMap[i+j] = getWindingOrder(pts[j], pts[j], pts[b[j + 1]], src) << 1;
 		}
 	}
 
 
 	// Loop over all in-bound hexagons to add their walls to the list.
-	// TO-DO: this currently does not take into account top-half inversion.
-	int I = 0;
+	// Face index could maybe be calculated in a different, more performant way. Test function first.
+	int I = 0;  // Index in the triangles array
 	for (int i = 0; i < 6 * HEX_COUNT(n) * 20; i += 6) { // For hexagon in the hexlist, get its start index
-		// Add the four face triangles:
+		uint8_t  si = ((i / (6*HEX_COUNT(n))) < 10)<<1;  // Should-invert offset [aka `(face index < 10)*2`]  // Could perhaps be calculated better, would an incremented face index be faster?
+
 		{
-			triangles[I + 0] = hexList[i + 0];
-			triangles[I + 1] = hexList[i + 2];
-			triangles[I + 2] = hexList[i + 4];
+			triangles[I + 0+si] = hexList[i + 0];  // 0 [2] 
+			triangles[I + 1   ] = hexList[i + 2];  // 1
+			triangles[I + 2-si] = hexList[i + 4];  // 2 [0]
 
-			triangles[I + 3] = hexList[i + 4];
-			triangles[I + 4] = hexList[i + 3];
-			triangles[I + 5] = hexList[i + 0];
+			triangles[I + 3+si] = hexList[i + 4];  // 3 [5]
+			triangles[I + 4   ] = hexList[i + 3];  // 4
+			triangles[I + 5-si] = hexList[i + 0];  // 5 [3]
 
-			triangles[I + 6] = hexList[i + 0];
-			triangles[I + 7] = hexList[i + 1];
-			triangles[I + 8] = hexList[i + 2];
+			triangles[I + 6+si] = hexList[i + 0];  // 6 [8]
+			triangles[I + 7   ] = hexList[i + 1];  // 7
+			triangles[I + 8-si] = hexList[i + 2];  // 8 [6]
 
-			triangles[I + 9] = hexList[i + 5];
-			triangles[I + 10] = hexList[i + 4];
-			triangles[I + 11] = hexList[i + 2];
+			triangles[I + 9 +si] = hexList[i + 5];  // 9  [11]
+			triangles[I + 10   ] = hexList[i + 4];  // 10
+			triangles[I + 11-si] = hexList[i + 2];  // 11 [9]
 
 			I += 12;
 		}
@@ -466,14 +467,16 @@ void HexaSphere::GetTriangles()
 			};
 			constexpr int b[9] = { 0, 1, 2, 3, 4, 5, 0, 1, 2 }; // The dumbest LUT in existance but its faster than the % operator.
 
-			// TO-DO: This currently does not take account the inversion map!
+			// Add the final wall triangles to the triangle array.
+			// Could maybe test performance of inline comparisons over shifted addition. Don't know the performance difference, probably very minor.
 			for (int j = 0; j < 6; j++) {
-				triangles[I+0] = pts[j]; 
-				triangles[I+1] = (pts[j] | 3);
-				triangles[I+2] = (pts[b[j+1]] | 3); 
-				triangles[I+3] = pts[j]; 
-				triangles[I+4] = (pts[b[j+1]] | 3); 
-				triangles[I+5] = pts[b[j+1]];
+				uint8_t wsi = inversionMap[(i % (6 * HEX_COUNT(n))) + j] ^ si;
+				triangles[I+0 +wsi] = pts[j];             // J     [K_low]
+				triangles[I+1    ] = (pts[j] | 3);       // J_low
+				triangles[I+2 -wsi] = (pts[b[j+1]] | 3);  // K_low [J]
+				triangles[I+3 +wsi] = pts[j];             // J     [K]
+				triangles[I+4    ] = (pts[b[j+1]] | 3);  // K_low
+				triangles[I+5 -wsi] = pts[b[j+1]];        // K     [J]
 				I += 6;
 			}
 		}
